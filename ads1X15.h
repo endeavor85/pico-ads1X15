@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     Adafruit_ADS1X15.h
+    @file     ADS1X15.h
 
     This is a library for the Adafruit ADS1X15 ADC breakout boards.
 
@@ -9,16 +9,15 @@
     products from Adafruit!
 
     Written by Kevin "KTOWN" Townsend for Adafruit Industries.
+    Ported to Raspberry Pi Pico by endeavor85
 
     BSD license, all text here must be included in any redistribution
 */
 /**************************************************************************/
-#ifndef __ADS1X15_H__
-#define __ADS1X15_H__
+#ifndef ADS1X15_H
+#define ADS1X15_H
 
-#include <Adafruit_I2CDevice.h>
-#include <Arduino.h>
-#include <Wire.h>
+#include "hardware/i2c.h"
 
 /*=========================================================================
     I2C ADDRESS/BITS
@@ -138,16 +137,18 @@ typedef enum {
     @brief  Sensor driver for the Adafruit ADS1X15 ADC breakouts.
 */
 /**************************************************************************/
-class Adafruit_ADS1X15 {
+class ADS1X15 {
 protected:
   // Instance-specific properties
-  Adafruit_I2CDevice *m_i2c_dev; ///< I2C bus device
+  i2c_inst_t *i2c_instance;      ///< I2C bus device
+  uint8_t i2c_addr;
   uint8_t m_bitShift;            ///< bit shift amount
   adsGain_t m_gain;              ///< ADC gain
   uint16_t m_dataRate;           ///< Data rate
 
 public:
-  bool begin(uint8_t i2c_addr = ADS1X15_ADDRESS, TwoWire *wire = &Wire);
+  ADS1X15(i2c_inst_t *i2c_instance, uint8_t i2c_addr, uint sda_gpio, uint scl_gpio, uint8_t bit_shift, adsGain_t gain, uint16_t data_rate);
+  void begin();
   int16_t readADC_SingleEnded(uint8_t channel);
   int16_t readADC_Differential_0_1();
   int16_t readADC_Differential_2_3();
@@ -171,9 +172,9 @@ private:
     @brief  Sensor driver for the Adafruit ADS1015 ADC breakout.
 */
 /**************************************************************************/
-class Adafruit_ADS1015 : public Adafruit_ADS1X15 {
+class ADS1015 : public ADS1X15 {
 public:
-  Adafruit_ADS1015();
+  ADS1015(i2c_inst_t *i2c_instance, uint8_t i2c_addr, uint sda_gpio, uint scl_gpio);
 };
 
 /**************************************************************************/
@@ -181,9 +182,9 @@ public:
     @brief  Sensor driver for the Adafruit ADS1115 ADC breakout.
 */
 /**************************************************************************/
-class Adafruit_ADS1115 : public Adafruit_ADS1X15 {
+class ADS1115 : public ADS1X15 {
 public:
-  Adafruit_ADS1115();
+  ADS1115(i2c_inst_t *i2c_instance, uint8_t i2c_addr, uint sda_gpio, uint scl_gpio);
 };
 
 #endif

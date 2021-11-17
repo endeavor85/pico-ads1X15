@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     Adafruit_ADS1X15.cpp
+    @file     ADS1X15.cpp
     @author   K.Townsend (Adafruit Industries)
 
     @mainpage Adafruit ADS1X15 ADC Breakout Driver
@@ -16,6 +16,7 @@
     @section author Author
 
     Written by Kevin "KTOWN" Townsend for Adafruit Industries.
+    Ported to Raspberry Pi Pico by endeavor85
 
     @section  HISTORY
 
@@ -28,29 +29,59 @@
     BSD license, all text here must be included in any redistribution
 */
 /**************************************************************************/
-#include "Adafruit_ADS1X15.h"
+#include "ads1X15.h"
+
+#include "pico/binary_info.h"
+#include "hardware/gpio.h"
+
+ADS1X15::ADS1X15(i2c_inst_t *i2c_instance, uint8_t i2c_addr, uint sda_gpio, uint scl_gpio, uint8_t bit_shift, adsGain_t gain, uint16_t data_rate) :
+  i2c_instance(i2c_instance),
+  i2c_addr(i2c_addr),
+  m_bitShift(bit_shift),
+  m_gain(gain), /* +/- 6.144V range (limited to VDD +0.3V max!) */
+  m_dataRate(data_rate)
+  {
+    gpio_set_function(sda_gpio, GPIO_FUNC_I2C);
+    gpio_set_function(scl_gpio, GPIO_FUNC_I2C);
+    
+    gpio_pull_up(sda_gpio);
+    gpio_pull_up(scl_gpio);
+
+    // Make the I2C pins available to picotool
+    bi_decl(bi_2pins_with_func(sda_gpio, scl_gpio, GPIO_FUNC_I2C));
+  }
 
 /**************************************************************************/
 /*!
     @brief  Instantiates a new ADS1015 class w/appropriate properties
 */
 /**************************************************************************/
-Adafruit_ADS1015::Adafruit_ADS1015() {
-  m_bitShift = 4;
-  m_gain = GAIN_TWOTHIRDS; /* +/- 6.144V range (limited to VDD +0.3V max!) */
-  m_dataRate = RATE_ADS1015_1600SPS;
-}
+ADS1015::ADS1015(i2c_inst_t *i2c_instance, uint8_t i2c_addr, uint sda_gpio, uint scl_gpio) :
+  ADS1X15(
+    i2c_instance,
+    i2c_addr,
+    sda_gpio,
+    scl_gpio,
+    4, // bit shift
+    GAIN_TWOTHIRDS, /* +/- 6.144V range (limited to VDD +0.3V max!) */
+    RATE_ADS1015_1600SPS)
+  {}
 
 /**************************************************************************/
 /*!
     @brief  Instantiates a new ADS1115 class w/appropriate properties
 */
 /**************************************************************************/
-Adafruit_ADS1115::Adafruit_ADS1115() {
-  m_bitShift = 0;
-  m_gain = GAIN_TWOTHIRDS; /* +/- 6.144V range (limited to VDD +0.3V max!) */
-  m_dataRate = RATE_ADS1115_128SPS;
-}
+ADS1115::ADS1115(i2c_inst_t *i2c_instance, uint8_t i2c_addr, uint sda_gpio, uint scl_gpio) :
+  ADS1X15(
+    i2c_instance,
+    i2c_addr,
+    sda_gpio,
+    scl_gpio,
+    0, // bit shift
+    GAIN_TWOTHIRDS, /* +/- 6.144V range (limited to VDD +0.3V max!) */
+    RATE_ADS1115_128SPS)
+  {}
 
 /**************************************************************************/
 /*!
@@ -62,9 +93,10 @@ Adafruit_ADS1115::Adafruit_ADS1115() {
     @return true if successful, otherwise false
 */
 /**************************************************************************/
-bool Adafruit_ADS1X15::begin(uint8_t i2c_addr, TwoWire *wire) {
-  m_i2c_dev = new Adafruit_I2CDevice(i2c_addr, wire);
-  return m_i2c_dev->begin();
+void ADS1X15::begin() {
+  // m_i2c_dev = new Adafruit_I2CDevice(i2c_addr, wire);
+  // return m_i2c_dev->begin();
+  i2c_init(i2c_instance, 100 * 1000);
 }
 
 /**************************************************************************/
@@ -74,7 +106,7 @@ bool Adafruit_ADS1X15::begin(uint8_t i2c_addr, TwoWire *wire) {
     @param gain gain setting to use
 */
 /**************************************************************************/
-void Adafruit_ADS1X15::setGain(adsGain_t gain) { m_gain = gain; }
+void ADS1X15::setGain(adsGain_t gain) { m_gain = gain; }
 
 /**************************************************************************/
 /*!
@@ -83,7 +115,7 @@ void Adafruit_ADS1X15::setGain(adsGain_t gain) { m_gain = gain; }
     @return the gain setting
 */
 /**************************************************************************/
-adsGain_t Adafruit_ADS1X15::getGain() { return m_gain; }
+adsGain_t ADS1X15::getGain() { return m_gain; }
 
 /**************************************************************************/
 /*!
@@ -92,7 +124,7 @@ adsGain_t Adafruit_ADS1X15::getGain() { return m_gain; }
     @param rate the data rate to use
 */
 /**************************************************************************/
-void Adafruit_ADS1X15::setDataRate(uint16_t rate) { m_dataRate = rate; }
+void ADS1X15::setDataRate(uint16_t rate) { m_dataRate = rate; }
 
 /**************************************************************************/
 /*!
@@ -101,7 +133,7 @@ void Adafruit_ADS1X15::setDataRate(uint16_t rate) { m_dataRate = rate; }
     @return the data rate
 */
 /**************************************************************************/
-uint16_t Adafruit_ADS1X15::getDataRate() { return m_dataRate; }
+uint16_t ADS1X15::getDataRate() { return m_dataRate; }
 
 /**************************************************************************/
 /*!
@@ -112,7 +144,7 @@ uint16_t Adafruit_ADS1X15::getDataRate() { return m_dataRate; }
     @return the ADC reading
 */
 /**************************************************************************/
-int16_t Adafruit_ADS1X15::readADC_SingleEnded(uint8_t channel) {
+int16_t ADS1X15::readADC_SingleEnded(uint8_t channel) {
   if (channel > 3) {
     return 0;
   }
@@ -171,7 +203,7 @@ int16_t Adafruit_ADS1X15::readADC_SingleEnded(uint8_t channel) {
     @return the ADC reading
 */
 /**************************************************************************/
-int16_t Adafruit_ADS1X15::readADC_Differential_0_1() {
+int16_t ADS1X15::readADC_Differential_0_1() {
   // Start with default values
   uint16_t config =
       ADS1X15_REG_CONFIG_CQUE_NONE |    // Disable the comparator (default val)
@@ -213,7 +245,7 @@ int16_t Adafruit_ADS1X15::readADC_Differential_0_1() {
     @return the ADC reading
 */
 /**************************************************************************/
-int16_t Adafruit_ADS1X15::readADC_Differential_2_3() {
+int16_t ADS1X15::readADC_Differential_2_3() {
   // Start with default values
   uint16_t config =
       ADS1X15_REG_CONFIG_CQUE_NONE |    // Disable the comparator (default val)
@@ -257,7 +289,7 @@ int16_t Adafruit_ADS1X15::readADC_Differential_2_3() {
     @param threshold comparator threshold
 */
 /**************************************************************************/
-void Adafruit_ADS1X15::startComparator_SingleEnded(uint8_t channel,
+void ADS1X15::startComparator_SingleEnded(uint8_t channel,
                                                    int16_t threshold) {
   // Start with default values
   uint16_t config =
@@ -308,7 +340,7 @@ void Adafruit_ADS1X15::startComparator_SingleEnded(uint8_t channel,
     @return the last ADC reading
 */
 /**************************************************************************/
-int16_t Adafruit_ADS1X15::getLastConversionResults() {
+int16_t ADS1X15::getLastConversionResults() {
   // Read the conversion results
   uint16_t res = readRegister(ADS1X15_REG_POINTER_CONVERT) >> m_bitShift;
   if (m_bitShift == 0) {
@@ -333,7 +365,7 @@ int16_t Adafruit_ADS1X15::getLastConversionResults() {
     @return the ADC reading in volts
 */
 /**************************************************************************/
-float Adafruit_ADS1X15::computeVolts(int16_t counts) {
+float ADS1X15::computeVolts(int16_t counts) {
   // see data sheet Table 3
   float fsRange;
   switch (m_gain) {
@@ -366,7 +398,7 @@ float Adafruit_ADS1X15::computeVolts(int16_t counts) {
     @brief  Returns true if conversion is complete, false otherwise.
 */
 /**************************************************************************/
-bool Adafruit_ADS1X15::conversionComplete() {
+bool ADS1X15::conversionComplete() {
   return (readRegister(ADS1X15_REG_POINTER_CONFIG) & 0x8000) != 0;
 }
 
@@ -378,11 +410,12 @@ bool Adafruit_ADS1X15::conversionComplete() {
     @param value value to write to register
 */
 /**************************************************************************/
-void Adafruit_ADS1X15::writeRegister(uint8_t reg, uint16_t value) {
+void ADS1X15::writeRegister(uint8_t reg, uint16_t value) {
   buffer[0] = reg;
   buffer[1] = value >> 8;
   buffer[2] = value & 0xFF;
-  m_i2c_dev->write(buffer, 3);
+
+  i2c_write_blocking(i2c_instance, i2c_addr, buffer, 3, false);
 }
 
 /**************************************************************************/
@@ -394,9 +427,9 @@ void Adafruit_ADS1X15::writeRegister(uint8_t reg, uint16_t value) {
     @return 16 bit register value read
 */
 /**************************************************************************/
-uint16_t Adafruit_ADS1X15::readRegister(uint8_t reg) {
+uint16_t ADS1X15::readRegister(uint8_t reg) {
   buffer[0] = reg;
-  m_i2c_dev->write(buffer, 1);
-  m_i2c_dev->read(buffer, 2);
+  i2c_write_blocking(i2c_instance, i2c_addr, buffer, 1, true);
+  i2c_read_blocking(i2c_instance, i2c_addr, buffer, 2, false);
   return ((buffer[0] << 8) | buffer[1]);
 }
